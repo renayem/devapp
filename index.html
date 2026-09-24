@@ -257,7 +257,19 @@ async function refreshAuthorisation(){
   updateRestrictedUI();
 }
 function updateRestrictedUI(){
-  ['playerMasterBtn','scheduleGamesBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!isAuthorised;});
+  ['playerMasterBtn','scheduleGamesBtn'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    if(isAuthorised){
+      el.hidden=false;
+      el.style.removeProperty('display');
+      el.style.removeProperty('visibility');
+    }else{
+      el.hidden=true;
+      el.style.setProperty('display','none','important');
+      el.style.setProperty('visibility','hidden','important');
+    }
+  });
   const highScorerBtn=document.getElementById('highScorerBtn');
   if(highScorerBtn)highScorerBtn.hidden=false;
   const status=document.getElementById('authStatus');
