@@ -9,7 +9,12 @@
 <style>
 :root{--bg:#f4f6f8;--card:#fff;--text:#17202a;--muted:#667085;--line:#d9dee5;--accent:#2563eb;--danger:#b42318}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
-.wrap{max-width:900px;margin:auto;padding:18px 14px 40px}h1{margin:0 0 4px}.sub,.hint{color:var(--muted);font-size:14px}
+.wrap{max-width:900px;margin:auto;padding:18px 14px 40px;position:relative}h1{margin:0 0 4px}.sub,.hint{color:var(--muted);font-size:14px}
+.authCorner{position:absolute!important;top:18px;right:14px;z-index:50;background:transparent!important;border:0!important;padding:0!important;margin:0!important;box-shadow:none!important}
+.authCorner>div:first-child>div:first-child{display:none}
+.authCorner>div:first-child{display:block!important}
+.authCorner #loginPanel{position:absolute;right:0;top:42px;width:320px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;box-shadow:0 8px 24px rgba(0,0,0,.16);margin:0!important}
+@media(max-width:650px){.authCorner{top:12px;right:12px}.authCorner #loginPanel{width:min(320px,calc(100vw - 24px));right:-6px}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:12px 0}
 textarea{width:100%;min-height:120px;padding:12px;border:1px solid var(--line);border-radius:10px;font:inherit}
 button{border:0;border-radius:9px;padding:11px 15px;background:var(--accent);color:#fff;font-weight:700;margin:4px 4px 4px 0}
@@ -109,7 +114,7 @@ label{font-size:14px}input[type=checkbox]{width:18px;height:18px;vertical-align:
 </div>
 
 <button id="scheduleBtn" class="scheduleBtn" type="button" aria-expanded="false">Schedule</button>
-<div id="authBar" class="card" style="margin-top:0">
+<div id="authBar" class="card authCorner">
   <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
     <div><b id="authStatus">Public access</b><div id="authDetail" class="hint">Schedule, previous weeks and results are available to everyone.</div></div>
     <div><button id="loginBtn" type="button">Authorised Login</button><button id="logoutBtn" type="button" class="secondary" hidden>Log Out</button></div>
