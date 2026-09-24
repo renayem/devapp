@@ -82,6 +82,8 @@ label{font-size:14px}input[type=checkbox]{width:18px;height:18px;vertical-align:
 }
 
 .scheduleBtn{display:block;width:100%;margin:12px 0;padding:14px 18px;border:0;border-radius:12px;background:#f26a21;color:#fff;font-size:18px;font-weight:800}
+/* Management buttons must remain hidden until an authorised session is confirmed. */
+.topNavButtons #playerMasterBtn[hidden],.topNavButtons #scheduleGamesBtn[hidden]{display:none !important;visibility:hidden !important;}
 .schedulePanel{display:none;margin:12px 0 20px;background:#fff;border:1px solid #ddd;border-radius:14px;padding:10px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
 .schedulePanel.open{display:block}
 .schedulePanel img{display:block;width:100%;height:auto;border-radius:8px}
@@ -179,6 +181,22 @@ label{font-size:14px}input[type=checkbox]{width:18px;height:18px;vertical-align:
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  function lockManagementButtons(){
+    ['playerMasterBtn','scheduleGamesBtn'].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el){el.hidden=true;el.style.setProperty('display','none','important');el.style.setProperty('visibility','hidden','important');}
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',lockManagementButtons); else lockManagementButtons();
+  window.addEventListener('load',lockManagementButtons);
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});}).catch(function(){});
+    if(window.caches){caches.keys().then(function(keys){keys.forEach(function(k){caches.delete(k);});}).catch(function(){});}
+  }
+})();
+</script>
 <script>
 'use strict';
 
