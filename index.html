@@ -239,7 +239,9 @@ async function refreshAuthorisation(){
   updateRestrictedUI();
 }
 function updateRestrictedUI(){
-  ['playerMasterBtn','scheduleGamesBtn','highScorerBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!isAuthorised;});
+  ['playerMasterBtn','scheduleGamesBtn'].forEach(id=>{const el=document.getElementById(id);if(el)el.hidden=!isAuthorised;});
+  const highScorerBtn=document.getElementById('highScorerBtn');
+  if(highScorerBtn)highScorerBtn.hidden=false;
   const status=document.getElementById('authStatus');
   const detail=document.getElementById('authDetail');
   if(status)status.textContent=isAuthorised?'Authorised user':'Public access';
@@ -625,16 +627,21 @@ function todayISO(){
 function renderHighScorerPanel(){
   state.highScorers=Array.isArray(state.highScorers)?state.highScorers:[];
   const panel=document.getElementById('highScorerPanel');
-  const options=state.players.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
-  panel.innerHTML=`<div class="pageHeader"><h2>Weekly High Scorer</h2><p class="hint">Record the highest scorer for each week. If players tie, add each tied player to the same date.</p></div>
-    <div id="highScorerEntryRows"></div>
-    <div class="actions" style="margin-top:12px"><button id="addHighScorerBtn" type="button">Add Another Player</button><button id="saveHighScorerBtn" class="saveMatch" type="button">Save High Scorer</button></div>
-    <div id="highScorerMessage" class="ok" style="margin-top:10px"></div>
-    <div id="highScorerHistory" style="margin-top:18px"></div>`;
-  addHighScorerRow(options);
-  renderHighScorerHistory();
-  document.getElementById('addHighScorerBtn').addEventListener('click',()=>addHighScorerRow(options));
-  document.getElementById('saveHighScorerBtn').addEventListener('click',saveHighScorer);
+  if(isAuthorised){
+    const options=state.players.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    panel.innerHTML=`<div class="pageHeader"><h2>Weekly High Scorer</h2><p class="hint">Record the highest scorer for each week. If players tie, add each tied player to the same date.</p></div>
+      <div id="highScorerEntryRows"></div>
+      <div class="actions" style="margin-top:12px"><button id="addHighScorerBtn" type="button">Add Another Player</button><button id="saveHighScorerBtn" class="saveMatch" type="button">Save High Scorer</button></div>
+      <div id="highScorerMessage" class="ok" style="margin-top:10px"></div>
+      <div id="highScorerHistory" style="margin-top:18px"></div>`;
+    addHighScorerRow(options);
+    renderHighScorerHistory();
+    document.getElementById('addHighScorerBtn').addEventListener('click',()=>addHighScorerRow(options));
+    document.getElementById('saveHighScorerBtn').addEventListener('click',saveHighScorer);
+  }else{
+    panel.innerHTML=`<div class="pageHeader"><h2>Weekly High Scorer</h2><p class="hint">View the saved weekly high scorers.</p></div><div id="highScorerHistory"></div>`;
+    renderHighScorerHistory();
+  }
 }
 function addHighScorerRow(options){
   const box=document.getElementById('highScorerEntryRows');
