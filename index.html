@@ -118,7 +118,24 @@ label{font-size:14px}input[type=checkbox]{width:18px;height:18px;vertical-align:
     <input id="loginEmail" type="email" autocomplete="email" placeholder="Email address" style="width:100%;padding:10px;border:1px solid #d9dee5;border-radius:8px;margin-bottom:8px;font:inherit">
     <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Password" style="width:100%;padding:10px;border:1px solid #d9dee5;border-radius:8px;margin-bottom:8px;font:inherit">
     <button id="doLoginBtn" type="button">Log In</button>
+    <button id="forgotPasswordBtn" type="button" class="secondary">Forgot password?</button>
     <div id="loginMessage" class="hint" style="margin-top:7px"></div>
+    <div id="forgotPanel" hidden style="margin-top:12px;padding:12px;border:1px solid #d9dee5;border-radius:10px;background:#fafafa">
+      <b>Reset your password</b>
+      <div class="hint" style="margin:5px 0 8px">Enter your email and we will send you a secure reset link.</div>
+      <input id="resetEmail" type="email" autocomplete="email" placeholder="Email address" style="width:100%;padding:10px;border:1px solid #d9dee5;border-radius:8px;margin-bottom:8px;font:inherit">
+      <button id="sendResetBtn" type="button">Send Reset Email</button>
+      <button id="cancelResetBtn" type="button" class="secondary">Cancel</button>
+      <div id="resetMessage" class="hint" style="margin-top:7px"></div>
+    </div>
+    <div id="passwordRecoveryPanel" hidden style="margin-top:12px;padding:12px;border:1px solid #d9dee5;border-radius:10px;background:#fafafa">
+      <b id="passwordRecoveryTitle">Set a new password</b>
+      <div id="passwordRecoveryHint" class="hint" style="margin:5px 0 8px">Enter your new password below.</div>
+      <input id="newPassword" type="password" autocomplete="new-password" placeholder="New password" style="width:100%;padding:10px;border:1px solid #d9dee5;border-radius:8px;margin-bottom:8px;font:inherit">
+      <input id="newPasswordConfirm" type="password" autocomplete="new-password" placeholder="Confirm new password" style="width:100%;padding:10px;border:1px solid #d9dee5;border-radius:8px;margin-bottom:8px;font:inherit">
+      <button id="saveNewPasswordBtn" type="button">Save New Password</button>
+      <div id="passwordRecoveryMessage" class="hint" style="margin-top:7px"></div>
+    </div>
   </div>
 </div>
 <div class="topNavButtons">
@@ -224,6 +241,61 @@ function updateRestrictedUI(){
   if(detail)detail.textContent=isAuthorised?'You can manage players, schedule games, results and weekly high scorers.':'Schedule, previous weeks and results are available to everyone.';
   const login=document.getElementById('loginBtn'),logout=document.getElementById('logoutBtn');
   if(login)login.hidden=isAuthorised; if(logout)logout.hidden=!isAuthorised;
+}
+function showPasswordRecovery(isInvite=false){
+  const panel=document.getElementById('passwordRecoveryPanel');
+  if(!panel)return;
+  panel.hidden=false;
+  document.getElementById('loginPanel').hidden=false;
+  document.getElementById('forgotPanel').hidden=true;
+  document.getElementById('passwordRecoveryTitle').textContent=isInvite?'Finish setting up your account':'Set a new password';
+  document.getElementById('passwordRecoveryHint').textContent=isInvite?'Choose a password for your Rising Sun account, then you can log in normally.':'Enter your new password below.';
+  document.getElementById('newPassword').focus();
+}
+async function sendPasswordReset(){
+  const msg=document.getElementById('resetMessage');
+  const email=document.getElementById('resetEmail').value.trim();
+  if(!email){msg.textContent='Enter your email address.';return;}
+  if(!supabaseClient){msg.textContent='Supabase is not connected yet.';return;}
+  msg.textContent='Sending reset email…';
+  const redirectTo=window.location.origin+window.location.pathname;
+  const {error}=await supabaseClient.auth.resetPasswordForEmail(email,{redirectTo});
+  if(error){msg.textContent=error.message;return;}
+  msg.textContent='If that email has an account, a password reset link has been sent.';
+}
+async function saveNewPassword(){
+  const msg=document.getElementById('passwordRecoveryMessage');
+  const password=document.getElementById('newPassword').value;
+  const confirm=document.getElementById('newPasswordConfirm').value;
+  if(password.length<6){msg.textContent='Password must be at least 6 characters.';return;}
+  if(password!==confirm){msg.textContent='The passwords do not match.';return;}
+  if(!supabaseClient){msg.textContent='Supabase is not connected yet.';return;}
+  msg.textContent='Saving password…';
+  const {error}=await supabaseClient.auth.updateUser({password});
+  if(error){msg.textContent=error.message;return;}
+  msg.textContent='Password updated successfully. You can now log in.';
+  document.getElementById('newPassword').value='';
+  document.getElementById('newPasswordConfirm').value='';
+  setTimeout(async()=>{
+    await supabaseClient.auth.signOut();
+    document.getElementById('passwordRecoveryPanel').hidden=true;
+    document.getElementById('loginPanel').hidden=false;
+    document.getElementById('loginMessage').textContent='Password updated. Please log in.';
+  },700);
+}
+function inspectAuthRedirect(){
+  const hash=window.location.hash||'';
+  const search=window.location.search||'';
+  const params=new URLSearchParams(hash.startsWith('#')?hash.slice(1):hash);
+  const query=new URLSearchParams(search);
+  const type=params.get('type')||query.get('type');
+  const errorDescription=params.get('error_description')||query.get('error_description');
+  if(errorDescription){
+    document.getElementById('loginPanel').hidden=false;
+    document.getElementById('loginMessage').textContent=decodeURIComponent(errorDescription.replace(/\+/g,' '));
+    return;
+  }
+  if(type==='invite')showPasswordRecovery(true);
 }
 async function doLogin(){
   const msg=document.getElementById('loginMessage');
@@ -965,11 +1037,19 @@ state.highScorers=Array.isArray(state.highScorers)?state.highScorers:[];
 state.weeks.forEach(w=>{if(!w.gameCounts)recountWeek(w); if(w.saved===undefined)w.saved=!!w.gameCounts; ensureResults(w); if(w.resultsSaved===undefined)w.resultsSaved=false;});
 document.getElementById('loginBtn').addEventListener('click',()=>document.getElementById('loginPanel').hidden=!document.getElementById('loginPanel').hidden);
 document.getElementById('doLoginBtn').addEventListener('click',doLogin);
+document.getElementById('forgotPasswordBtn').addEventListener('click',()=>{document.getElementById('forgotPanel').hidden=!document.getElementById('forgotPanel').hidden;document.getElementById('resetEmail').value=document.getElementById('loginEmail').value.trim();});
+document.getElementById('cancelResetBtn').addEventListener('click',()=>document.getElementById('forgotPanel').hidden=true);
+document.getElementById('sendResetBtn').addEventListener('click',sendPasswordReset);
+document.getElementById('saveNewPasswordBtn').addEventListener('click',saveNewPassword);
 document.getElementById('logoutBtn').addEventListener('click',doLogout);
 (async()=>{
   initSupabase();
-  if(supabaseClient) supabaseClient.auth.onAuthStateChange(async()=>{await refreshAuthorisation();});
+  if(supabaseClient) supabaseClient.auth.onAuthStateChange(async(event)=>{
+    if(event==='PASSWORD_RECOVERY')showPasswordRecovery(false);
+    await refreshAuthorisation();
+  });
   await refreshAuthorisation();
+  inspectAuthRedirect();
   await load();
 })();
 </script>
