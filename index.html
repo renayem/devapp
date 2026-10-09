@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#2563eb">
 <link rel="manifest" href="manifest.webmanifest">
-<title>Rising Sun Ladies</title>
+<title>Rising Sun Ladies Darts and Doms</title>
 <style>
 :root{--bg:#f4f6f8;--card:#fff;--text:#17202a;--muted:#667085;--line:#d9dee5;--accent:#2563eb;--danger:#b42318}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
@@ -196,6 +196,10 @@ label{font-size:14px}input[type=checkbox]{width:18px;height:18px;vertical-align:
 <div id="attendanceCard" class="card setup">
 <h2>Week <span id="weekNo">1</span> — Attendance</h2>
 <div id="attendance" class="players"></div>
+<div style="margin:10px 0;padding:10px;border:1px solid #ddd;border-radius:9px;background:#fff">
+<label style="display:flex;gap:8px;align-items:center;font-weight:700;margin:0"><input type="checkbox" id="overrideFairness" style="width:18px;height:18px"> Override fairness rules for this schedule</label>
+<p class="hint" style="margin:6px 0 0">Available to authorised users. Player category preferences (Darts/Dominoes) and the fixed number of matches still apply.</p>
+</div>
 <div class="actions">
 <button id="generate">Generate This Week</button>
 </div>
@@ -231,6 +235,11 @@ let state={players:[],weeks:[],prefs:{},events:[]};
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function previous(p){const w=state.weeks[state.weeks.length-1];return w&&w.gameCounts&&w.gameCounts[p]?w.gameCounts[p]:0;}
+function lastCompletedWeek(){return [...(state.weeks||[])].reverse().find(w=>w&&w.resultsSaved)||null;}
+function lastWeekAttended(p){const w=state.weeks[state.weeks.length-1];return !!(w&&Array.isArray(w.attending)&&w.attending.includes(p));}
+function lastSinglesWinners(){const w=lastCompletedWeek();if(!w)return [];const results=w.results||{};return (w.singles||[]).filter((g,i)=>results.singles&&results.singles[i]==='W').map(g=>g[0]);}
+function lastDoublesWinningTeams(){const w=lastCompletedWeek();if(!w)return [];const results=w.results||{};return (w.darts||[]).filter((g,i)=>results.darts&&results.darts[i]==='W').map(g=>[...g]);}
+function fairnessOverrideEnabled(){return !!document.getElementById('overrideFairness')?.checked;}
 let supabaseClient=null;
 let isAuthorised=false;
 const SUPABASE_URL='https://ylfloaylyuphahtesybn.supabase.co';
@@ -282,6 +291,9 @@ async function refreshAuthorisation(){
   updateRestrictedUI();
 }
 function updateRestrictedUI(){
+  const fairnessWrap=document.getElementById('overrideFairness')?.closest('div[style*="border:1px solid #ddd"]');
+  if(fairnessWrap)fairnessWrap.hidden=!isAuthorised;
+  if(!isAuthorised&&document.getElementById('overrideFairness'))document.getElementById('overrideFairness').checked=false;
   ['playerMasterBtn','scheduleGamesBtn'].forEach(id=>{
     const el=document.getElementById(id);
     if(!el)return;
@@ -442,6 +454,9 @@ function generate(){
   const dartsOnly=attending.filter(p=>state.prefs[p]?.darts);
   const domOnly=attending.filter(p=>state.prefs[p]?.dominoes);
   const eligible=attending.filter(p=>!domOnly.includes(p));
+  const overrideFairness=fairnessOverrideEnabled();
+  const previousSinglesWinners=overrideFairness?[]:lastSinglesWinners().filter(p=>attending.includes(p)&&!domOnly.includes(p));
+  const previousDoublesWinningTeams=overrideFairness?[]:lastDoublesWinningTeams().filter(team=>team.some(p=>attending.includes(p)&&!domOnly.includes(p)));
 
   if(dartsOnly.some(p=>domOnly.includes(p))){error.textContent='A player cannot be marked as both Darts and Dominoes.';return;}
   if(dartsOnly.length>6){error.textContent='No more than 6 attending players can have Darts checked.';return;}
@@ -457,8 +472,10 @@ function generate(){
   const target=Object.fromEntries(attending.map(p=>[p,domOnly.includes(p)?1:1]));
   let extras=18-attending.length;
   const priorityOrder=shuffle(eligible).sort((a,b)=>{
+    if(overrideFairness)return Math.random()-.5;
+    const aa=lastWeekAttended(a)?0:1, ba=lastWeekAttended(b)?0:1;
     const ap=previous(a)===1?0:1, bp=previous(b)===1?0:1;
-    return (ap-bp)||(previous(a)-previous(b));
+    return (aa-ba)||(ap-bp)||(previous(a)-previous(b));
   });
 
   // First give a second game to anyone who had only one last week.
@@ -495,14 +512,17 @@ function generate(){
   // allowed; repeats within the same pair are never allowed.
   function orderPlayers(pool){
     return shuffle(pool).sort((a,b)=>{
+      if(overrideFairness)return Math.random()-.5;
+      const aa=lastWeekAttended(a)?0:1,ba=lastWeekAttended(b)?0:1;
       const ap=previous(a)===1?0:1,bp=previous(b)===1?0:1;
-      return (ap-bp)||(remaining[b]-remaining[a]);
+      return (aa-ba)||(ap-bp)||(remaining[b]-remaining[a]);
     });
   }
 
   function buildSingles(){
     const chosen=[];
-    const mandatory=[...dartsOnly];
+    // Previous Singles winners have priority for a Singles match; Darts preference remains mandatory.
+    const mandatory=[...new Set([...dartsOnly,...previousSinglesWinners])];
     if(mandatory.length>6)return false;
     const optional=orderPlayers(eligible.filter(p=>!mandatory.includes(p)));
     const need=6-mandatory.length;
@@ -526,11 +546,15 @@ function generate(){
     return true;
   }
 
-  function orderDoubles(pool){
+  function orderDoubles(pool, teammateFor=null){
     return shuffle(pool).sort((a,b)=>{
+      if(overrideFairness)return Math.random()-.5;
+      const mateA=teammateFor===a?0:1, mateB=teammateFor===b?0:1;
+      const winA=previousDoublesWinningTeams.some(team=>team.includes(a))?0:1, winB=previousDoublesWinningTeams.some(team=>team.includes(b))?0:1;
       const ad=dartsOnly.includes(a)?0:1, bd=dartsOnly.includes(b)?0:1;
+      const aa=lastWeekAttended(a)?0:1, ba=lastWeekAttended(b)?0:1;
       const ap=previous(a)===1?0:1, bp=previous(b)===1?0:1;
-      return (ad-bd)||(ap-bp)||(remaining[b]-remaining[a]);
+      return (mateA-mateB)||(winA-winB)||(ad-bd)||(aa-ba)||(ap-bp)||(remaining[b]-remaining[a]);
     });
   }
 
@@ -540,7 +564,9 @@ function generate(){
       if(game===3)return true;
       const pool=orderDoubles(eligible.filter(p=>remaining[p]>0&&!used.has(p)));
       for(const a of pool){
-        for(const b of orderDoubles(eligible.filter(p=>p!==a&&remaining[p]>0&&!used.has(p)))){
+        const winningTeam=previousDoublesWinningTeams.find(team=>team.includes(a));
+        const preferredMate=winningTeam?.find(p=>p!==a&&eligible.includes(p)&&remaining[p]>0&&!used.has(p));
+        for(const b of orderDoubles(eligible.filter(p=>p!==a&&remaining[p]>0&&!used.has(p)),preferredMate)){
           remaining[a]--;remaining[b]--;used.add(a);used.add(b);doubles.push([a,b]);
           if(rec(game+1))return true;
           doubles.pop();used.delete(a);used.delete(b);remaining[a]++;remaining[b]++;
@@ -593,6 +619,23 @@ function generate(){
     return;
   }
 
+  // Rotate Singles winners away from their previous match number where possible.
+  if(!overrideFairness){
+    const prevWeek=lastCompletedWeek();
+    if(prevWeek){
+      for(let oldIndex=0;oldIndex<(prevWeek.singles||[]).length;oldIndex++){
+        const oldPlayer=prevWeek.singles[oldIndex]?.[0];
+        if(!oldPlayer||!previousSinglesWinners.includes(oldPlayer))continue;
+        const currentIndex=singles.findIndex(g=>g[0]===oldPlayer);
+        const desired=(oldIndex+1)%6;
+        if(currentIndex>=0&&currentIndex!==desired){
+          const displaced=singles[desired];
+          singles[desired]=singles[currentIndex];
+          singles[currentIndex]=displaced;
+        }
+      }
+    }
+  }
   // Final hard-rule validation.
   const counts=Object.fromEntries(attending.map(p=>[p,0]));
   [...singles,...doubles,...dominoes].flat().forEach(p=>counts[p]++);
@@ -605,10 +648,11 @@ function generate(){
     }
   }
   const fairCounts=eligible.map(p=>counts[p]);
-  if(Math.max(...fairCounts)>=3&&Math.min(...fairCounts)<=1){error.textContent='Fairness rule violated. No schedule was saved.';return;}
+  if(!overrideFairness && Math.max(...fairCounts)>=3&&Math.min(...fairCounts)<=1){error.textContent='Fairness rule violated. No schedule was saved.';return;}
 
-  state.weeks.push({number:state.weeks.length+1,date:new Date().toLocaleDateString('en-GB'),attending,singles,darts:doubles,dominoes,gameCounts:counts,saved:false});
-  save();renderOutput();renderAttendance();
+  state.weeks.push({number:state.weeks.length+1,date:new Date().toLocaleDateString('en-GB'),attending,singles,darts:doubles,dominoes,gameCounts:counts,saved:false,draftOnly:true});
+  // Draft stays in memory only until Save All Match Changes is pressed.
+  renderOutput();renderAttendance();
 }
 
 function playerOptions(selected, attending){
