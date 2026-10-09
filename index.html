@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#2563eb">
 <link rel="manifest" href="manifest.webmanifest">
-<title>Rising Sun Ladies Darts and Doms</title>
+<title>Rising Sun Ladies</title>
 <style>
 :root{--bg:#f4f6f8;--card:#fff;--text:#17202a;--muted:#667085;--line:#d9dee5;--accent:#2563eb;--danger:#b42318}
 *{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
@@ -36,22 +36,22 @@ label{font-size:14px}input[type=checkbox]{width:18px;height:18px;vertical-align:
   .printTitle{text-align:center;font-size:15px;font-weight:800;letter-spacing:.2px;margin:0 0 2px}
   .printSubTitle{text-align:center;font-size:10px;font-weight:700;margin:0 0 6px}
   .printTop{font-size:10px;font-weight:700;text-align:center;margin-bottom:2px}
-  .printMatchTitle{font-size:13px;font-weight:800;text-align:center;margin-bottom:4px}
-  .printDate{text-align:left;font-size:10px;font-weight:700;margin-bottom:2px}
+  .printMatchTitle{font-size:14px;font-weight:800;text-align:center;margin:0 0 1px}
+  .opposingTeamLine{height:25px;border-bottom:1.5px solid #111;width:100%;margin:0 0 5px}
+  .printDate{text-align:left;font-size:15px;font-weight:800;margin:5px 0 5px}
+  .printDateValue{font-size:15px}
   .printTopLine{border-bottom:1.5px solid #111;height:1px;margin-bottom:1px}
-  .printSection{border:1.4px solid #111;margin-top:8px}
+  .printSection{border:1.4px solid #111;margin-top:7px}
   .printSectionTitle{font-size:11px;font-weight:800;padding:4px 6px;border-bottom:1.2px solid #111}
   .printRows{width:100%;border-collapse:collapse;table-layout:fixed}
-  .printRows td{height:26px;border-right:1px solid #111;border-bottom:1px solid #111;padding:2px 7px;font-size:10px;vertical-align:middle}
+  .printRows td{height:25px;border-right:1px solid #111;border-bottom:1px solid #111;padding:2px 7px;font-size:10px;vertical-align:middle}
   .printRows tr:last-child td{border-bottom:0}
   .printRows td.num{width:24px;text-align:center;font-weight:700;padding:0}
   .printRows td.player{width:39%;font-weight:700}
   .printRows td.score{width:7%;text-align:center}
   .printRows td.opponent{width:39%;font-weight:700}
   .printRows td:last-child{border-right:0}
-  .printRows .subtotal td{height:22px;font-weight:800}
-  .printRows .subtotal .label{text-align:right}
-  .printResults{margin-top:9px;border:1.4px solid #111}
+    .printResults{margin-top:9px;border:1.4px solid #111}
   .printResultsTitle{text-align:center;font-size:11px;font-weight:800;padding:4px;border-bottom:1.2px solid #111}
   .printResults table{width:100%;border-collapse:collapse;table-layout:fixed}
   .printResults td{height:25px;border-right:1px solid #111;border-bottom:1px solid #111;padding:3px 6px;font-size:10px}
@@ -650,11 +650,16 @@ function editableGame(w, category, gameIndex, game){
 function resultFor(w,category,index){
   return (w.results&&w.results[category]&&w.results[category][index])||'';
 }
-function historyGames(title,games,category){
-  return `<h4>${title}</h4><div class="historyGames">${games.map((g,i)=>`
-    <div class="historyGame"><span><b>Game ${i+1}:</b> ${g.map(esc).join(' + ')}</span><span class="historyResult">${resultFor(currentHistoryWeek,category,i) ? `<b>${resultFor(currentHistoryWeek,category,i)}</b>` : ''}</span></div>`).join('')}</div>`;
+function historyGames(title,games,category,w){
+  return `<h4>${title}</h4><div class="historyGames">${games.map((g,i)=>{
+    const value=resultFor(w,category,i);
+    const name=`fix_${w.number}_${category}_${i}`;
+    const result=isAuthorised
+      ? `<span class="historyResult" style="white-space:nowrap"><label style="display:inline-flex;align-items:center;gap:3px;margin:0 5px 0 0;font-weight:normal"><input type="radio" name="${name}" value="W" ${value==='W'?'checked':''}> W</label><label style="display:inline-flex;align-items:center;gap:3px;margin:0;font-weight:normal"><input type="radio" name="${name}" value="L" ${value==='L'?'checked':''}> L</label></span>`
+      : `<span class="historyResult">${value ? `<b>${value}</b>` : ''}</span>`;
+    return `<div class="historyGame"><span><b>Game ${i+1}:</b> ${g.map(esc).join(' + ')}</span>${result}</div>`;
+  }).join('')}</div>`;
 }
-let currentHistoryWeek=null;
 function renderPreviousWeeks(){
   const panel=document.getElementById('previousWeeksPanel');
   const savedWeeks=state.weeks.slice().reverse().filter(w=>w.saved && w.resultsSaved);
@@ -663,15 +668,34 @@ function renderPreviousWeeks(){
     return;
   }
   panel.innerHTML='<div class="pageHeader"><h2>Previous Weeks Matches</h2><p class="hint">Completed weeks are stored here after Results have been saved.</p></div>'+savedWeeks.map(w=>{
-    currentHistoryWeek=w;
+    ensureResults(w);
     const singles=w.singles||[], darts=w.darts||[], dominoes=w.dominoes||[];
     return `<div class="weekHistory"><h3>Week ${w.number} <span class="hint">(${esc(w.date||'')})</span></h3>
-      ${historyGames('🎯 Singles Darts',singles,'singles')}
-      ${historyGames('🎯 Doubles Darts',darts,'darts')}
-      ${historyGames('🀄 Dominoes',dominoes,'dominoes')}
+      ${historyGames('🎯 Singles Darts',singles,'singles',w)}
+      ${historyGames('🎯 Doubles Darts',darts,'darts',w)}
+      ${historyGames('🀄 Dominoes',dominoes,'dominoes',w)}
+      ${isAuthorised ? `<div style="margin:12px 0 20px"><button type="button" class="saveMatch" id="saveCorrections_${w.number}">Save W/L Corrections</button><span class="hint" style="margin-left:10px">Only authorised users can change saved results.</span></div>` : ''}
     </div>`;
   }).join('');
-  currentHistoryWeek=null;
+}
+async function saveHistoricalResultCorrections(weekNumber){
+  if(!isAuthorised){alert('Please log in as an authorised user.');return;}
+  const w=state.weeks.find(x=>x.number===weekNumber);
+  if(!w || !w.resultsSaved)return;
+  ensureResults(w);
+  for(const category of ['singles','darts','dominoes']){
+    for(let i=0;i<(w[category]||[]).length;i++){
+      const selected=document.querySelector(`input[name="fix_${weekNumber}_${category}_${i}"]:checked`);
+      if(!selected){alert(`Please select W or L for ${category} Game ${i+1} before saving corrections.`);return;}
+      w.results[category][i]=selected.value;
+    }
+  }
+  w.resultTotals=buildWeekResultTotals(w);
+  state.resultTotals=calculateAllResultTotals();
+  await save();
+  renderPreviousWeeks();
+  renderResultsPanel();
+  alert(`Week ${weekNumber} result corrections saved.`);
 }
 
 function todayISO(){
@@ -880,93 +904,63 @@ function printTeamSheet(weekNumber){
   const old=document.querySelector('#output .printSheet');
   if(old)old.remove();
   const escP=p=>esc(p||'');
-  const singles=w.singles||[];
-  const doubles=w.darts||[];
-  const dominoes=w.dominoes||[];
-
-  const singlesRows=singles.map((g,i)=>`
-    <tr>
-      <td class="num">${i+1}</td>
-      <td class="player">${escP(g[0])}</td>
-      <td class="score"></td>
-      <td class="opponent"></td>
-      <td class="score"></td>
-    </tr>`).join('');
-
-  const doublesRows=doubles.map((g,i)=>`
-    <tr>
-      <td class="num">${i+1}</td>
-      <td class="player">${escP(g[0])}${g[1]?` + ${escP(g[1])}`:''}</td>
-      <td class="score"></td>
-      <td class="opponent"></td>
-      <td class="score"></td>
-    </tr>`).join('');
-
-  const dominoRows=dominoes.map((g,i)=>`
+  const isDraft=!w.saved;
+  const readCurrentGames=(category,games)=>isDraft?games.map((g,i)=>{
+    const id=`m_${w.number}_${category}_${i}`;
+    const a=document.getElementById(`${id}_a`)?.value || g[0] || '';
+    const b=document.getElementById(`${id}_b`)?.value;
+    return b!==undefined?[a,b]:[a];
+  }):games;
+  const singles=readCurrentGames('singles',w.singles||[]);
+  const doubles=readCurrentGames('darts',w.darts||[]);
+  const dominoes=readCurrentGames('dominoes',w.dominoes||[]);
+  ensureResults(w);
+  const resultValue=(category,i)=>{
+    const radio=document.querySelector(`input[name="result_${w.number}_${category}_${i}"]:checked`) || document.querySelector(`input[name="res_${w.number}_${category}_${i}"]:checked`);
+    const result=radio?.value || w.results?.[category]?.[i] || '';
+    return result==='W'?'1':result==='L'?'0':'';
+  };
+  const makeRows=(games,category)=>games.map((g,i)=>`
     <tr>
       <td class="num">${i+1}</td>
       <td class="player">${escP(g[0])}${g[1]?` + ${escP(g[1])}`:''}</td>
       <td class="score"></td>
       <td class="opponent"></td>
       <td class="score"></td>
+      <td class="totalValue">${resultValue(category,i)}</td>
     </tr>`).join('');
-
-  const section=(title,rows)=>`
-    <div class="printSection">
+  const section=(title,rows,games,category)=>{
+    return `<div class="printSection">
       <div class="printSectionTitle">${title}</div>
-      <table class="printRows"><tbody>
+      <table class="printRows"><thead><tr><th class="num">#</th><th class="player">RISING SUN</th><th class="score">SCORE</th><th class="opponent">OPPOSING TEAM</th><th class="score">SCORE</th><th class="totalValue">TOTAL</th></tr></thead><tbody>
         ${rows}
-        <tr class="subtotal">
-          <td colspan="2" class="label">TOTAL</td>
-          <td></td>
-          <td class="label">TOTAL</td>
-          <td></td>
-        </tr>
       </tbody></table>
     </div>`;
-
+  };
   const sheet=document.createElement('div');
   sheet.className='printSheet';
   const today=new Date();
-  const dateText=String(today.getDate()).padStart(2,'0')+'/'+String(today.getMonth()+1).padStart(2,'0')+'/'+today.getFullYear();
+  const dateText=w.date || (String(today.getDate()).padStart(2,'0')+'/'+String(today.getMonth()+1).padStart(2,'0')+'/'+today.getFullYear());
   sheet.innerHTML=`
     <div class="printTitle">MILLOM DISTRICT LADIES DARTS &amp; DOMINO LEAGUE</div>
     <div class="printSubTitle">TEAM SHEET</div>
     <div class="printTop">
-      <div class="printMatchTitle">The Rising Sun V. [Opposing Team]</div>
-      <div class="printDate">DATE: ${dateText}</div>
+      <div class="printMatchTitle">The Rising Sun&nbsp;&nbsp;V.</div>
+      <div class="opposingTeamLine"></div>
+      <div class="printDate">DATE: <span class="printDateValue">${esc(dateText)}</span></div>
       <div class="printTopLine"></div>
     </div>
-    ${section('DARTS - SINGLES',singlesRows)}
-    ${section('DARTS - DOUBLES',doublesRows)}
-    ${section('DOMINOES',dominoRows)}
+    ${section('DARTS - SINGLES',makeRows(singles,'singles'),singles,'singles')}
+    ${section('DARTS - DOUBLES',makeRows(doubles,'darts'),doubles,'darts')}
+    ${section('DOMINOES',makeRows(dominoes,'dominoes'),dominoes,'dominoes')}
     <div class="printResults">
       <div class="printResultsTitle">RESULTS</div>
       <table><tbody>
-        <tr>
-          <td class="kind">DARTS</td>
-          <td class="home">HOME</td>
-          <td class="scorebox"></td>
-          <td class="away">AWAY</td>
-          <td class="scorebox"></td>
-          <td class="totalLabel">TOTAL</td>
-          <td class="totalBox"></td>
-        </tr>
-        <tr>
-          <td class="kind">DOMINOES</td>
-          <td class="home">HOME</td>
-          <td class="scorebox"></td>
-          <td class="away">AWAY</td>
-          <td class="scorebox"></td>
-          <td class="totalLabel">TOTAL</td>
-          <td class="totalBox"></td>
-        </tr>
+        <tr><td class="kind">DARTS</td><td class="home">HOME</td><td class="scorebox"></td><td class="away">AWAY</td><td class="scorebox"></td></tr>
+        <tr><td class="kind">DOMINOES</td><td class="home">HOME</td><td class="scorebox"></td><td class="away">AWAY</td><td class="scorebox"></td></tr>
       </tbody></table>
     </div>
-    <div class="printCaptains">
-      <div class="printCaptainsTitle">CAPTAINS' SIGNATURES</div>
-      <div class="printCaptainRow"><span>Rising Sun Captain:</span><span class="printSignatureLine"></span><span>Away Captain:</span><span class="printSignatureLine"></span></div>
-    </div>`;
+    <div class="printCaptains"><div class="printCaptainsTitle">CAPTAINS' SIGNATURES</div><div class="printCaptainRow"><span>Rising Sun Captain:</span><span class="printSignatureLine"></span><span>Away Captain:</span><span class="printSignatureLine"></span></div></div>`;
   document.getElementById('output').appendChild(sheet);
   const cleanup=()=>{sheet.remove();window.removeEventListener('afterprint',cleanup);};
   window.addEventListener('afterprint',cleanup);
@@ -994,7 +988,8 @@ function renderOutput(){
       <p>${Object.entries(w.gameCounts||recountWeek(w)).map(([p,n])=>`<span class="badge">${esc(p)}: ${n}</span>`).join('')}</p>
       ${!w.saved ? `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #ddd">
         <button id="saveAllMatches_${w.number}" class="saveMatch" type="button" style="width:100%;font-size:17px">Save All Match Changes</button>
-        <p class="hint" style="margin:7px 0 0">Make all your changes for this week, then press Save once to recalculate the match totals.</p>
+        <button id="printDraft_${w.number}" class="secondary noPrint" type="button" style="width:100%;font-size:17px">Print Draft (without saving)</button>
+        <p class="hint" style="margin:7px 0 0">Print a draft without committing it, or save all match changes when you are ready.</p>
       </div>` : `<div style="margin-top:14px;padding-top:12px;border-top:1px solid #ddd">
         <p class="ok" style="margin:0 0 10px">✓ Matches saved</p>
         <button id="print_${w.number}" class="secondary noPrint" type="button" style="width:100%;font-size:17px">Print</button>
@@ -1143,6 +1138,11 @@ document.getElementById('output').addEventListener('click',e=>{
   const btn=e.target.closest('button[id^="saveResults_"]');
   if(!btn)return;
   commitWeekResults(Number(btn.id.split('_').pop())).catch(err=>console.error('Save results failed',err));
+});
+document.getElementById('previousWeeksPanel').addEventListener('click',e=>{
+  const btn=e.target.closest('button[id^="saveCorrections_"]');
+  if(!btn)return;
+  saveHistoricalResultCorrections(Number(btn.id.split('_').pop())).catch(err=>{console.error('Saving result corrections failed',err);alert('Could not save the corrections. Please try again.');});
 });
 document.getElementById('highScorerBtn').addEventListener('click',()=>{
   const panel=document.getElementById('highScorerPanel');
@@ -1345,8 +1345,9 @@ document.getElementById('resultsBtn').addEventListener('click',()=>{
 document.getElementById('generate').addEventListener('click',generate);
 document.getElementById('output').addEventListener('click',e=>{
   const btn=e.target.closest('button[id^="print_"]');
-  if(!btn) return;
-  const weekNumber=Number(btn.id.split('_')[1]);
+  const draftBtn=e.target.closest('button[id^="printDraft_"]');
+  if(!btn && !draftBtn) return;
+  const weekNumber=Number((btn||draftBtn).id.split('_').pop());
   printTeamSheet(weekNumber);
 });
 document.getElementById('reset').addEventListener('click',()=>{
