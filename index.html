@@ -47,12 +47,13 @@ label{font-size:14px}input[type=checkbox]{width:18px;height:18px;vertical-align:
   .printRows th{font-size:8.5px;padding:1mm 1.5mm;border-right:1px solid #111;border-bottom:1.2px solid #111;text-align:center}
   .printRows td{display:table-cell!important;border-right:1px solid #111;border-bottom:1px solid #111;padding:1mm 1.5mm;font-size:9.5px;vertical-align:middle}
   .printRows tr:last-child td{border-bottom:0}
+  /* Match columns: number 5%, player 33%, third column 8%, fourth column 46%, final TOTAL 8%. */
   .printRows td.num,.printRows th.num{width:5%;text-align:center;font-weight:700;padding:0}
-  .printRows td.player,.printRows th.player{display:table-cell!important;width:27%;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
-  .printRows td.homeScore,.printRows th.homeScore{width:30%;}
-  .printRows td.awayScore,.printRows th.awayScore{width:30%;}
-  .printRows td.score,.printRows th.score{width:12%;text-align:center}
-  .printRows td.opponent,.printRows th.opponent{width:40%;font-weight:700}
+  .printRows td.player,.printRows th.player{display:table-cell!important;width:33%;font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15}
+  .printRows td.homeScore,.printRows th.homeScore{width:8%;}
+  .printRows td.awayScore,.printRows th.awayScore{width:46%;}
+  .printRows td.score,.printRows th.score{width:8%;text-align:center}
+  .printRows td.opponent,.printRows th.opponent{width:46%;font-weight:700}
   .printRows td.totalValue,.printRows th.totalValue{width:8%;text-align:center;font-weight:800}
   .printRows td:last-child,.printRows th:last-child{border-right:0}
   .printResults{margin-top:3mm;border:1.4px solid #111;height:30mm;flex-shrink:0}
@@ -464,17 +465,22 @@ function generate(){
   if(attending.length<6){error.textContent='Please select at least 6 attendees.';return;}
   if(attending.length>18){error.textContent='There cannot be more than 18 attendees for the fixed 18 player slots.';return;}
 
-  const dartsOnly=attending.filter(p=>state.prefs[p]?.darts);
-  const domOnly=attending.filter(p=>state.prefs[p]?.dominoes);
+  // Preferences guide the draw, but must never prevent a schedule when at
+  // least six players attend. There are only six Singles slots, and at least
+  // six players must remain eligible for darts, so resolve conflicting/excess
+  // preferences softly rather than aborting generation.
+  const requestedDartsOnly=attending.filter(p=>state.prefs[p]?.darts);
+  const requestedDomOnly=attending.filter(p=>state.prefs[p]?.dominoes);
+  const dartsOnly=requestedDartsOnly.slice(0,6);
+  const domOnly=requestedDomOnly
+    .filter(p=>!dartsOnly.includes(p))
+    .slice(0,Math.max(0,attending.length-6));
   const eligible=attending.filter(p=>!domOnly.includes(p));
   const previousSinglesWinners=lastSinglesWinners().filter(p=>attending.includes(p)&&!domOnly.includes(p)).slice(0,Math.max(0,6-dartsOnly.length));
   const previousDoublesWinningTeams=lastDoublesWinningTeams().filter(team=>team.some(p=>attending.includes(p)&&!domOnly.includes(p))); 
   const allHistoryGameCounts=Object.fromEntries(state.players.map(p=>[p,(state.weeks||[]).reduce((sum,w)=>sum+((w.gameCounts&&w.gameCounts[p])||0),0)]));
 
-  if(dartsOnly.some(p=>domOnly.includes(p))){error.textContent='A player cannot be marked as both Darts and Dominoes.';return;}
-  if(dartsOnly.length>6){error.textContent='No more than 6 attending players can have Darts checked.';return;}
-  if(domOnly.length>6){error.textContent='No more than 6 attending players can have Dominoes checked.';return;}
-  if(eligible.length<6){error.textContent='At least 6 attending players must be available for darts. Dominoes-only players cannot play darts.';return;}
+  // Preference conflicts are resolved above; attendance of six is sufficient.
 
   // ---------------- TARGET GAME COUNTS ----------------
   // There are exactly 18 player slots. Dominoes-only players consume exactly
@@ -655,7 +661,27 @@ function generate(){
       if(buildSingles()&&buildDoubles()&&buildDominoes()&&attending.every(p=>remaining[p]===0)){success=true;Object.assign(target,relaxed);}
     }
   }
-  if(!success){error.textContent='The selected category preferences cannot fit the fixed 6 Singles, 3 Doubles and 3 Dominoes games. Please adjust a player preference or attendance.';return;}
+  if(!success){
+    // Last-resort schedule: ignore category preferences and historical targets,
+    // while keeping the fixed game counts and at least one game per attendee.
+    // With six or more attendees this should always be constructible.
+    const fallbackTargets=Object.fromEntries(attending.map(p=>[p,1]));
+    let slots=18-attending.length;
+    const fallbackOrder=shuffle(attending);
+    while(slots>0){for(const p of fallbackOrder){if(slots<=0)break;fallbackTargets[p]++;slots--;}}
+    for(let attempt=0;attempt<3000&&!success;attempt++){
+      singles.length=0;doubles.length=0;dominoes.length=0;
+      for(const p of attending)remaining[p]=fallbackTargets[p];
+      // In fallback mode all attendees can play any category.
+      const savedDartsOnly=dartsOnly.splice(0,dartsOnly.length);
+      const savedDomOnly=domOnly.splice(0,domOnly.length);
+      if(buildSingles()&&buildDoubles()&&buildDominoes()&&attending.every(p=>remaining[p]===0)){
+        success=true;Object.assign(target,fallbackTargets);
+      }
+      if(!success){dartsOnly.push(...savedDartsOnly);domOnly.push(...savedDomOnly);}
+    }
+  }
+  if(!success){error.textContent='Unable to generate a schedule. Please try generating again.';return;}
 
   // Rotate every returning Singles player to the next match position, not
   // only previous winners. This prevents a preference/priority player (e.g.
