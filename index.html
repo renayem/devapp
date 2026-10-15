@@ -271,13 +271,14 @@ function publicState(){return {weeks:state.weeks||[],resultTotals:state.resultTo
 function privateState(){return {players:state.players||[],prefs:state.prefs||{}};}
 async function save(){
   cacheState();
-  if(!supabaseClient||!isAuthorised) return;
+  if(!supabaseClient||!isAuthorised) return {ok:true,localOnly:true};
   const [pub,priv]=await Promise.all([
     supabaseClient.from('league_public_state').upsert({id:1,state:publicState(),updated_at:new Date().toISOString()},{onConflict:'id'}),
     supabaseClient.from('league_private_state').upsert({id:1,state:privateState(),updated_at:new Date().toISOString()},{onConflict:'id'})
   ]);
   if(pub.error) console.error('Public server save failed',pub.error);
   if(priv.error) console.error('Private server save failed',priv.error);
+  return {ok:!pub.error&&!priv.error,error:pub.error||priv.error||null};
 }
 async function load(){
   try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&Array.isArray(s.players))state=s;}catch(e){}
@@ -1186,19 +1187,41 @@ function buildWeekResultTotals(w){
 }
 
 async function commitWeekResults(weekNumber){
-  if(!isAuthorised)return;
+  if(!isAuthorised){alert('Please log in as an authorised user before saving results.');return;}
   const w=state.weeks.find(x=>x.number===weekNumber);
-  if(!w || !w.saved || w.resultsSaved || !allResultsSelected(w)) return;
+  if(!w || !w.saved || w.resultsSaved){alert('These matches are not ready to save. Please check that the matches have been saved first.');return;}
+  if(!allResultsSelected(w)){
+    updateSaveResultsButton(w);
+    alert('Please select W or L for every Singles, Doubles and Dominoes match before pressing Save Results.');
+    return;
+  }
+  const previousTotals=state.resultTotals;
   w.resultTotals=buildWeekResultTotals(w);
   w.resultsSaved=true;
-  // Rebuild the league totals from all completed weeks so every player's
-  // cumulative Darts and Dominoes record is based on the saved matches.
+  // Rebuild league totals from all completed weeks.
   state.resultTotals=calculateAllResultTotals();
-  await save();
-  renderOutput();
-  renderAttendance();
-  // Refresh the Results page immediately so the newly saved match is included.
-  renderResultsPanel();
+  try{
+    const outcome=await save();
+    if(outcome && outcome.ok===false){
+      w.resultsSaved=false;
+      state.resultTotals=previousTotals;
+      cacheState();
+      alert('Results could not be saved to the league server. Your week has not been marked complete. Please check your connection and try again.');
+      renderOutput();
+      return;
+    }
+    renderOutput();
+    renderAttendance();
+    renderResultsPanel();
+    alert(`Week ${w.number} results saved successfully.`);
+  }catch(err){
+    console.error('Save results failed',err);
+    w.resultsSaved=false;
+    state.resultTotals=previousTotals;
+    cacheState();
+    renderOutput();
+    alert('An error occurred while saving results. The week has not been marked complete. Please try again.');
+  }
 }
 
 function reopenCurrentWeek(weekNumber){
