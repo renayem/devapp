@@ -767,11 +767,15 @@ function editableGame(w, category, gameIndex, game){
 function resultFor(w,category,index){
   return (w.results&&w.results[category]&&w.results[category][index])||'';
 }
+function resultsLockedByLaterWeek(w){
+  return (state.weeks||[]).some(other=>other && Number(other.number)>Number(w.number));
+}
 function historyGames(title,games,category,w){
   return `<h4>${title}</h4><div class="historyGames">${games.map((g,i)=>{
     const value=resultFor(w,category,i);
     const name=`fix_${w.number}_${category}_${i}`;
-    const result=isAuthorised
+    const canEdit=isAuthorised && !resultsLockedByLaterWeek(w);
+    const result=canEdit
       ? `<span class="historyResult" style="white-space:nowrap"><label style="display:inline-flex;align-items:center;gap:3px;margin:0 5px 0 0;font-weight:normal"><input type="radio" name="${name}" value="W" ${value==='W'?'checked':''}> W</label><label style="display:inline-flex;align-items:center;gap:3px;margin:0;font-weight:normal"><input type="radio" name="${name}" value="L" ${value==='L'?'checked':''}> L</label></span>`
       : `<span class="historyResult">${value ? `<b>${value}</b>` : ''}</span>`;
     return `<div class="historyGame"><span><b>Game ${i+1}:</b> ${g.map(esc).join(' + ')}</span>${result}</div>`;
@@ -791,7 +795,7 @@ function renderPreviousWeeks(){
       ${historyGames('🎯 Singles Darts',singles,'singles',w)}
       ${historyGames('🎯 Doubles Darts',darts,'darts',w)}
       ${historyGames('🀄 Dominoes',dominoes,'dominoes',w)}
-      ${isAuthorised ? `<div style="margin:12px 0 20px"><button type="button" class="saveMatch" id="saveCorrections_${w.number}">Save W/L Corrections</button><span class="hint" style="margin-left:10px">Only authorised users can change saved results.</span></div>` : ''}
+      ${isAuthorised && !resultsLockedByLaterWeek(w) ? `<div style="margin:12px 0 20px"><button type="button" class="saveMatch" id="saveCorrections_${w.number}">Save W/L Corrections</button><span class="hint" style="margin-left:10px">Results can only be corrected before a newer week is entered.</span></div>` : (resultsLockedByLaterWeek(w) ? '<p class="hint">Results locked because a newer week has been entered.</p>' : '')}
     </div>`;
   }).join('');
 }
@@ -799,6 +803,7 @@ async function saveHistoricalResultCorrections(weekNumber){
   if(!isAuthorised){alert('Please log in as an authorised user.');return;}
   const w=state.weeks.find(x=>x.number===weekNumber);
   if(!w || !w.resultsSaved)return;
+  if(resultsLockedByLaterWeek(w)){alert('These results are locked because a newer week has been entered.');renderPreviousWeeks();return;}
   ensureResults(w);
   for(const category of ['singles','darts','dominoes']){
     for(let i=0;i<(w[category]||[]).length;i++){
@@ -1120,10 +1125,12 @@ function renderOutput(){
       </div>`}
       ${w.saved && !w.resultsSaved ? `<div style="margin-top:16px;padding-top:12px;border-top:1px solid #ddd">
         <button id="reopen_${w.number}" class="secondary" type="button" style="width:100%;font-size:17px;margin-bottom:10px">Reopen Current Week</button>
-        <button id="saveResults_${w.number}" class="saveMatch" type="button" style="width:100%;font-size:17px" disabled>Save Results</button>
+        <button id="saveResults_${w.number}" class="saveMatch" type="button" style="width:100%;font-size:17px">Save Results</button>
         <p id="resultsHint_${w.number}" class="hint" style="margin:7px 0 0">Select W or L for every match before saving the results.</p>
       </div>` : ''}
     </div>`).join('');
+  // Recalculate the button state after rendering, including saved W/L selections restored from storage.
+  active.forEach(w=>{ if(w.saved && !w.resultsSaved) updateSaveResultsButton(w); });
 }
 
 function recountWeek(w){
@@ -1289,7 +1296,23 @@ document.getElementById('output').addEventListener('click',e=>{
 document.getElementById('output').addEventListener('click',e=>{
   const btn=e.target.closest('button[id^="saveResults_"]');
   if(!btn)return;
-  commitWeekResults(Number(btn.id.split('_').pop())).catch(err=>console.error('Save results failed',err));
+  e.preventDefault();
+  const weekNumber=Number(btn.id.split('_').pop());
+  btn.disabled=true;
+  btn.textContent='Saving results…';
+  commitWeekResults(weekNumber).catch(err=>{
+    console.error('Save results failed',err);
+    const w=state.weeks.find(x=>x.number===weekNumber);
+    if(w) updateSaveResultsButton(w);
+    alert(`Could not save results: ${err&&err.message?err.message:'unexpected error'}`);
+  }).finally(()=>{
+    const current=document.getElementById(`saveResults_${weekNumber}`);
+    if(current && !state.weeks.find(x=>x.number===weekNumber)?.resultsSaved){
+      current.textContent='Save Results';
+      const w=state.weeks.find(x=>x.number===weekNumber);
+      if(w) updateSaveResultsButton(w);
+    }
+  });
 });
 document.getElementById('previousWeeksPanel').addEventListener('click',e=>{
   const btn=e.target.closest('button[id^="saveCorrections_"]');
